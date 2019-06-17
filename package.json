@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/thinkful-ei-emu/corey-ashley-npm-shopping-list/issues"
   },
-  "homepage": "https://github.com/thinkful-ei-emu/corey-ashley-npm-shopping-list#readme"
+  "homepage": "https://github.com/thinkful-ei-emu/corey-ashley-npm-shopping-list#readme",
+  "dependencies": {
+    "jquery": "^3.4.1"
+  }
 }
