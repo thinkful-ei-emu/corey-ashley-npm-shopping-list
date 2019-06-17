@@ -48,7 +48,7 @@ export default {
   findAndUpdate,
   toggleCheckedFilter,
   setSearchTerm,
-  setItemIsEditing,
+  setItemIsEditing
 };
   
 

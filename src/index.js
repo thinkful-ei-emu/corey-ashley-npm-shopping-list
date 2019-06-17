@@ -8,7 +8,7 @@ import store from './store';
 import shoppingList from './shopping-list';
 import './index.css';
 
-function main() {
+$(document).ready(function() {
   shoppingList.bindEventListeners();
 
   // On initial load, fetch Shopping Items and render
@@ -18,5 +18,5 @@ function main() {
       shoppingList.render();
     })
     .catch(err => console.log(err.message));
-}
+});
 console.log('test123');
