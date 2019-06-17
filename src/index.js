@@ -1,10 +1,15 @@
-import $ from 'jquery';
+'use strict';
+/* global shoppingList, store, api */
 
 function main() {
-  console.log('DOM is loaded');
+  shoppingList.bindEventListeners();
 
-  const startMsg = $('<p>Webpack is working!</p>');
-  $('#root').append(startMsg);
+  // On initial load, fetch Shopping Items and render
+  api.getItems()
+    .then((items) => {
+      items.forEach((item) => store.addItem(item));
+      shoppingList.render();
+    })
+    .catch(err => console.log(err.message));
 }
-
-$(main);
+console.log('test123');
