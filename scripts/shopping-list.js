@@ -1,12 +1,24 @@
 'use strict';
-/* global store, cuid */
+/* global store, api, $ */
 
 // eslint-disable-next-line no-unused-vars
 const shoppingList = (function(){
 
+  function generateError(message) {
+    return `
+      <section class="error-content">
+        <button id="cancel-error">X</button>
+        <p>${message}</p>
+      </section>
+    `;
+  }
+
   function generateItemElement(item) {
-    let itemTitle = `<span class="shopping-item shopping-item__checked">${item.name}</span>`;
-    if (!item.checked) {
+    const checkedClass = item.checked ? 'shopping-item__checked' : '';
+    const editBtnStatus = item.checked ? 'disabled' : '';
+
+    let itemTitle = `<span class="shopping-item ${checkedClass}">${item.name}</span>`;
+    if (item.isEditing) {
       itemTitle = `
         <form class="js-edit-item">
           <input class="shopping-item" type="text" value="${item.name}" />
@@ -18,6 +30,9 @@ const shoppingList = (function(){
       <li class="js-item-element" data-item-id="${item.id}">
         ${itemTitle}
         <div class="shopping-item-controls">
+          <button class="shopping-item-edit js-item-edit" ${editBtnStatus}>
+            <span class="button-label">edit</span>
+          </button>
           <button class="shopping-item-toggle js-item-toggle">
             <span class="button-label">check</span>
           </button>
@@ -34,8 +49,18 @@ const shoppingList = (function(){
     return items.join('');
   }
   
+  function renderError() {
+    if (store.error) {
+      const el = generateError(store.error);
+      $('.error-container').html(el);
+    } else {
+      $('.error-container').empty();
+    }
+  }
   
   function render() {
+    renderError();
+
     // Filter item list if store prop is true by item.checked === false
     let items = [ ...store.items ];
     if (store.hideCheckedItems) {
@@ -56,25 +81,22 @@ const shoppingList = (function(){
   }
   
   
-  function addItemToShoppingList(itemName) {
-    store.items.push({ id: cuid(), name: itemName, checked: false });
-  }
-  
   function handleNewItemSubmit() {
     $('#js-shopping-list-form').submit(function (event) {
       event.preventDefault();
       const newItemName = $('.js-shopping-list-entry').val();
       $('.js-shopping-list-entry').val('');
-      addItemToShoppingList(newItemName);
-      render();
+      api.createItem(newItemName)
+        .then((newItem) => {
+          store.addItem(newItem);
+          render();
+        })
+        .catch((err) => {
+          store.setError(err.message);
+          renderError();
+        });
     });
   }
-  
-  function toggleCheckedForListItem(id) {
-    const foundItem = store.items.find(item => item.id === id);
-    foundItem.checked = !foundItem.checked;
-  }
-  
   
   function getItemIdFromElement(item) {
     return $(item)
@@ -85,39 +107,36 @@ const shoppingList = (function(){
   function handleItemCheckClicked() {
     $('.js-shopping-list').on('click', '.js-item-toggle', event => {
       const id = getItemIdFromElement(event.currentTarget);
-      toggleCheckedForListItem(id);
-      render();
+      const item = store.findById(id);
+      api.updateItem(id, { checked: !item.checked })
+        .then(() => {
+          store.findAndUpdate(id, { checked: !item.checked });
+          render();
+        })
+        .catch((err) => {
+          console.log(err);
+          store.setError(err.message);
+          renderError();
+        }
+        );
     });
   }
   
-  function deleteListItem(id) {
-    const index = store.items.findIndex(item => item.id === id);
-    store.items.splice(index, 1);
-  }
-  
-  function editListItemName(id, itemName) {
-    const item = store.items.find(item => item.id === id);
-    item.name = itemName;
-  }
-  
-  function toggleCheckedItemsFilter() {
-    store.hideCheckedItems = !store.hideCheckedItems;
-  }
-  
-  function setSearchTerm(val) {
-    store.searchTerm = val;
-  }
-  
-  
   function handleDeleteItemClicked() {
-    // like in `handleItemCheckClicked`, we use event delegation
     $('.js-shopping-list').on('click', '.js-item-delete', event => {
-      // get the index of the item in store.items
       const id = getItemIdFromElement(event.currentTarget);
-      // delete the item
-      deleteListItem(id);
-      // render the updated shopping list
-      render();
+
+      api.deleteItem(id)
+        .then(() => {
+          store.findAndDelete(id);
+          render();
+        })
+        .catch((err) => {
+          console.log(err);
+          store.setError(err.message);
+          renderError();
+        }
+        );
     });
   }
   
@@ -126,14 +145,23 @@ const shoppingList = (function(){
       event.preventDefault();
       const id = getItemIdFromElement(event.currentTarget);
       const itemName = $(event.currentTarget).find('.shopping-item').val();
-      editListItemName(id, itemName);
-      render();
+      api.updateItem(id, { name: itemName })
+        .then(() => {
+          store.findAndUpdate(id, { name: itemName });
+          store.setItemIsEditing(id, false);
+          render();
+        })
+        .catch((err) => {
+          console.log(err);
+          store.setError(err.message);
+          renderError();
+        });
     });
   }
   
   function handleToggleFilterClick() {
     $('.js-filter-checked').click(() => {
-      toggleCheckedItemsFilter();
+      store.toggleCheckedFilter();
       render();
     });
   }
@@ -141,8 +169,23 @@ const shoppingList = (function(){
   function handleShoppingListSearch() {
     $('.js-shopping-list-search-entry').on('keyup', event => {
       const val = $(event.currentTarget).val();
-      setSearchTerm(val);
+      store.setSearchTerm(val);
       render();
+    });
+  }
+
+  function handleItemStartEditing() {
+    $('.js-shopping-list').on('click', '.js-item-edit', event => {
+      const id = getItemIdFromElement(event.target);
+      store.setItemIsEditing(id, true);
+      render();
+    });
+  }
+
+  function handleCloseError() {
+    $('.error-container').on('click', '#cancel-error', () => {
+      store.setError(null);
+      renderError();
     });
   }
   
@@ -153,6 +196,8 @@ const shoppingList = (function(){
     handleEditShoppingItemSubmit();
     handleToggleFilterClick();
     handleShoppingListSearch();
+    handleItemStartEditing();
+    handleCloseError();
   }
 
   // This object contains the only exposed methods from this module:
